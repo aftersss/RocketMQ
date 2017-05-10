@@ -177,6 +177,7 @@ public class RemotingUtil {
             sc.socket().setSendBufferSize(1024 * 64);
             sc.socket().connect(remote, timeoutMillis);
             sc.configureBlocking(false);
+            log.info("conneted to {}", remote);
             return sc;
         } catch (Exception e) {
             if (sc != null) {

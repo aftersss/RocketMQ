@@ -466,7 +466,10 @@ public class HAService {
                         this.byteBufferRead.position(this.dispatchPostion + msgHeaderSize);
                         this.byteBufferRead.get(bodyData);
 
-                        HAService.this.defaultMessageStore.appendToCommitLog(masterPhyOffset, bodyData);
+                        boolean isAppendSuccess = HAService.this.defaultMessageStore.appendToCommitLog(masterPhyOffset, bodyData);//this will return false when messageStore is shutdown
+                        if(!isAppendSuccess){
+                            return false;
+                        }
 
                         this.byteBufferRead.position(readSocketPos);
                         this.dispatchPostion += msgHeaderSize + bodySize;
@@ -557,7 +560,7 @@ public class HAService {
         public void run() {
             log.info(this.getServiceName() + " service started");
 
-            while (!this.isStopped()) {
+            while (!this.isStopped() && !HAService.this.getDefaultMessageStore().isShutdown()) {
                 try {
                     if (this.connectMaster()) {
 
@@ -565,6 +568,7 @@ public class HAService {
                             boolean result = this.reportSlaveMaxOffset(this.currentReportedOffset);
                             if (!result) {
                                 this.closeMaster();
+                                continue;
                             }
                         }
 
@@ -573,6 +577,7 @@ public class HAService {
                         boolean ok = this.processReadEvent();
                         if (!ok) {
                             this.closeMaster();
+                            continue;
                         }
 
                         if (!reportSlaveMaxOffsetPlus()) {
