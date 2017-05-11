@@ -466,8 +466,8 @@ public class HAService {
                         this.byteBufferRead.position(this.dispatchPostion + msgHeaderSize);
                         this.byteBufferRead.get(bodyData);
 
-                        boolean isAppendSuccess = HAService.this.defaultMessageStore.appendToCommitLog(masterPhyOffset, bodyData);//this will return false when messageStore is shutdown
-                        if(!isAppendSuccess){
+                        boolean isAppendSuccess = HAService.this.defaultMessageStore.appendToCommitLog(masterPhyOffset, bodyData); //this will return false when messageStore is shutdown
+                        if (!isAppendSuccess) {
                             return false;
                         }
 

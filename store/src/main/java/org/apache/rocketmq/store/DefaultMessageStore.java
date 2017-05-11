@@ -212,7 +212,7 @@ public class DefaultMessageStore implements MessageStore {
         this.shutdown = false;
     }
 
-    public boolean isShutdown(){
+    public boolean isShutdown() {
         return shutdown;
     }
 
