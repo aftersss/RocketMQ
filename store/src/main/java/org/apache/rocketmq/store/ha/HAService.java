@@ -558,7 +558,7 @@ public class HAService {
         public void run() {
             log.info(this.getServiceName() + " service started");
 
-            while (!this.isStopped() && !HAService.this.getDefaultMessageStore().isShutdown()) {
+            while (!this.isStopped() && !HAService.this.getDefaultMessageStore().isShutdowning()) {
                 try {
                     if (this.connectMaster()) {
 

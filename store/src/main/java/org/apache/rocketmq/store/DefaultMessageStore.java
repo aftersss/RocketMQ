@@ -97,6 +97,8 @@ public class DefaultMessageStore implements MessageStore {
     private final BrokerConfig brokerConfig;
 
     private volatile boolean shutdown = true;
+    //judge is shutdowning?
+    private volatile boolean shutdowning = false;
 
     private StoreCheckpoint storeCheckpoint;
 
@@ -212,8 +214,8 @@ public class DefaultMessageStore implements MessageStore {
         this.shutdown = false;
     }
 
-    public boolean isShutdown() {
-        return shutdown;
+    public boolean isShutdowning() {
+        return shutdowning;
     }
 
     /**
@@ -221,6 +223,7 @@ public class DefaultMessageStore implements MessageStore {
      */
     public void shutdown() {
         if (!this.shutdown) {
+            this.shutdowning = true;
             this.shutdown = true;
 
             this.scheduledExecutorService.shutdown();
@@ -255,6 +258,8 @@ public class DefaultMessageStore implements MessageStore {
         }
 
         this.transientStorePool.destroy();
+
+        this.shutdowning = false;
     }
 
     public void destroy() {
