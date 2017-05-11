@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -993,54 +992,53 @@ public class CommitLog {
      * GroupCommit Service
      */
     class GroupCommitService extends FlushCommitLogService {
-        private volatile List<GroupCommitRequest> requestsWrite = Collections.synchronizedList(new ArrayList<GroupCommitRequest>());
-        private volatile List<GroupCommitRequest> requestsRead = Collections.synchronizedList(new ArrayList<GroupCommitRequest>());
+        private volatile List<GroupCommitRequest> requestsWrite = new ArrayList<GroupCommitRequest>();
+        private volatile List<GroupCommitRequest> requestsRead = new ArrayList<GroupCommitRequest>();
 
-        public void putRequest(final GroupCommitRequest request) {
-            synchronized (this) {
+        public synchronized void putRequest(final GroupCommitRequest request) {
+            synchronized (this.requestsWrite) {
                 this.requestsWrite.add(request);
-                if (hasNotified.compareAndSet(false, true)) {
-                    waitPoint.countDown(); // notify
-                }
+            }
+            if (hasNotified.compareAndSet(false, true)) {
+                waitPoint.countDown(); // notify
             }
         }
 
         private void swapRequests() {
-            synchronized (this) {
-                List<GroupCommitRequest> tmp = this.requestsWrite;
-                this.requestsWrite = this.requestsRead;
-                this.requestsRead = tmp;
-            }
+            List<GroupCommitRequest> tmp = this.requestsWrite;
+            this.requestsWrite = this.requestsRead;
+            this.requestsRead = tmp;
         }
 
         private void doCommit() {
-            List<GroupCommitRequest> list = this.requestsRead;
-            if (!list.isEmpty()) {
-                for (GroupCommitRequest req : list) {
-                    // There may be a message in the next file, so a maximum of
-                    // two times the flush
-                    boolean flushOK = false;
-                    for (int i = 0; i < 2 && !flushOK; i++) {
-                        flushOK = CommitLog.this.mappedFileQueue.getFlushedWhere() >= req.getNextOffset();
+            synchronized (this.requestsRead) {
+                if (!this.requestsRead.isEmpty()) {
+                    for (GroupCommitRequest req : this.requestsRead) {
+                        // There may be a message in the next file, so a maximum of
+                        // two times the flush
+                        boolean flushOK = false;
+                        for (int i = 0; i < 2 && !flushOK; i++) {
+                            flushOK = CommitLog.this.mappedFileQueue.getFlushedWhere() >= req.getNextOffset();
 
-                        if (!flushOK) {
-                            CommitLog.this.mappedFileQueue.flush(0);
+                            if (!flushOK) {
+                                CommitLog.this.mappedFileQueue.flush(0);
+                            }
                         }
+
+                        req.wakeupCustomer(flushOK);
                     }
 
-                    req.wakeupCustomer(flushOK);
-                }
+                    long storeTimestamp = CommitLog.this.mappedFileQueue.getStoreTimestamp();
+                    if (storeTimestamp > 0) {
+                        CommitLog.this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(storeTimestamp);
+                    }
 
-                long storeTimestamp = CommitLog.this.mappedFileQueue.getStoreTimestamp();
-                if (storeTimestamp > 0) {
-                    CommitLog.this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(storeTimestamp);
+                    this.requestsRead.clear();
+                } else {
+                    // Because of individual messages is set to not sync flush, it
+                    // will come to this process
+                    CommitLog.this.mappedFileQueue.flush(0);
                 }
-
-                list.clear();
-            } else {
-                // Because of individual messages is set to not sync flush, it
-                // will come to this process
-                CommitLog.this.mappedFileQueue.flush(0);
             }
         }
 
